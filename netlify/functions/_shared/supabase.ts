@@ -25,21 +25,26 @@ export function successResponse<T>(data: T, message?: string): ApiResponse<T> {
   };
 }
 
-export function errorResponse(message: string, statusCode = 400): Response {
-  return new Response(
-    JSON.stringify({
+export function errorResponse(message: string, statusCode = 400) {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       success: false,
       error: message,
     }),
-    {
-      status: statusCode,
-      headers: { 'Content-Type': 'application/json' },
-    }
-  );
+  };
 }
 
-export async function getAuthUser(request: Request): Promise<{ user: any; profile: any } | null> {
-  const authHeader = request.headers.get('Authorization');
+export function getHeader(event: any, name: string): string | null {
+  if (!event.headers) return null;
+  const lowerName = name.toLowerCase();
+  // Netlify headers can be lowercase or mixed case
+  return event.headers[lowerName] || event.headers[name] || null;
+}
+
+export async function getAuthUser(event: any): Promise<{ user: any; profile: any } | null> {
+  const authHeader = getHeader(event, 'Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return null;
   }

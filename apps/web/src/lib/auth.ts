@@ -23,15 +23,21 @@ export async function signOut() {
 }
 
 export async function getCurrentUser(): Promise<User | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session?.access_token) {
-    return null;
-  }
-
-  localStorage.setItem('auth_token', session.access_token);
-
   try {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('Session error:', sessionError);
+      return null;
+    }
+
+    if (!session?.access_token) {
+      return null;
+    }
+
+    // Ensure token is stored
+    localStorage.setItem('auth_token', session.access_token);
+
     const response = await api.get<{ user: User; profile: any }>('/me');
     if (response.success && response.data) {
       return {
@@ -42,6 +48,8 @@ export async function getCurrentUser(): Promise<User | null> {
     }
   } catch (error) {
     console.error('Failed to get current user:', error);
+    // Clear invalid token
+    localStorage.removeItem('auth_token');
   }
 
   return null;
