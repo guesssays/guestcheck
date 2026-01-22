@@ -464,7 +464,6 @@ export const handler: Handler = async (event) => {
       if (data === 'menu_back') {
         const menu = createMainMenu();
         await editMessageText(chatId, messageId!, '📋 <b>Главное меню:</b>', menu);
-      }
       } else if (data === 'menu_in_building') {
         const text = await getInBuilding(ctx);
         const menu = createMainMenu();
