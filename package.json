@@ -1,0 +1,16 @@
+{
+  "name": "office-attendance",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspace=apps/web",
+    "preview": "npm run preview --workspace=apps/web"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0"
+  }
+}

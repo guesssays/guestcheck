@@ -1,0 +1,24 @@
+[build]
+  command = "npm run build"
+  publish = "apps/web/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[functions]]
+  path = "/api/*"
+  included_files = ["netlify/functions/**"]
+
+# Scheduled function for cleanup (runs daily at 2 AM UTC)
+[[functions.scheduled]]
+  path = "/api/cleanup"
+  schedule = "0 2 * * *"
