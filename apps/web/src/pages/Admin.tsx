@@ -183,8 +183,10 @@ function UsersTab({
   resetPermissions,
   updateMutation,
 }: any) {
-  return (
-    <>
+return (
+  <div>
+
+
       {isLoading ? (
         <div className="text-center py-12">Загрузка...</div>
       ) : (
@@ -349,6 +351,6 @@ function UsersTab({
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
