@@ -1,19 +1,18 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { User } from '@/types';
+
 import { hasPermission } from '@/lib/auth';
 import { UserPlus, UserMinus, Users, Clock, Building2 } from 'lucide-react';
 
 export default function Dashboard() {
-  const { data: userResponse } = useQuery({
-    queryKey: ['currentUser'],
-    queryFn: () => api.get<{ user: User; profile: any }>('/me'),
-  });
+const { data: userResponse } = useQuery({
+  queryKey: ['currentUser'],
+  queryFn: () => api.get<{ user: any; profile: any }>('/me'),
+});
 
-  // api.get now returns unwrapped data directly
-  const user = userResponse?.user;
-  const profile = userResponse?.profile;
+const profile = userResponse?.profile;
+
 
   const { data: onlineData } = useQuery({
     queryKey: ['onlineStatus'],
