@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { getCurrentUser } from '@/lib/auth';
-import { Save, RotateCcw, User, Plus, Trash2, Edit, MessageSquare } from 'lucide-react';
-import { PERMISSIONS, PERMISSION_GROUPS, getPermissionsByGroup, ROLE_PRESETS } from '@/lib/permissions';
+import { Save, RotateCcw, User, MessageSquare } from 'lucide-react';
+import { PERMISSION_GROUPS, getPermissionsByGroup, ROLE_PRESETS } from '@/lib/permissions';
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState<'users' | 'telegram'>('users');
@@ -183,10 +183,8 @@ function UsersTab({
   resetPermissions,
   updateMutation,
 }: any) {
-return (
-  <div>
-
-
+  return (
+    <>
       {isLoading ? (
         <div className="text-center py-12">Загрузка...</div>
       ) : (
@@ -351,6 +349,19 @@ return (
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+function TelegramWhitelistTab() {
+  return (
+    <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className="px-6 py-4">
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Telegram Whitelist</h2>
+        <p className="text-sm text-gray-600">
+          Управление доступом к Telegram-боту. Функционал в разработке.
+        </p>
+      </div>
     </div>
   );
 }
