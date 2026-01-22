@@ -185,7 +185,6 @@ function UsersTab({
 }: any) {
   return (
     <>
-
       {isLoading ? (
         <div className="text-center py-12">Загрузка...</div>
       ) : (
@@ -350,6 +349,6 @@ function UsersTab({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
