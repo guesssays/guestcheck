@@ -27,6 +27,7 @@ interface TelegramCallbackQuery {
 interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
+  edited_message?: TelegramMessage;
   callback_query?: TelegramCallbackQuery;
 }
 
@@ -104,17 +105,58 @@ function createMainMenu() {
   };
 }
 
-async function getUserContext(telegramId: number): Promise<UserContext | null> {
-  // Check whitelist
-  const { data: whitelist } = await supabase
+async function checkWhitelist(chatId: number | string): Promise<boolean> {
+  // Check if chat_id is in whitelist
+  // Convert to number for comparison (Supabase BIGINT may return as string)
+  const chatIdNum = typeof chatId === 'string' ? parseInt(chatId, 10) : chatId;
+  if (isNaN(chatIdNum)) {
+    return false;
+  }
+
+  const { data } = await supabase
     .from('telegram_whitelist')
-    .select('user_id, is_active')
-    .eq('telegram_id', telegramId)
-    .eq('is_active', true)
+    .select('chat_id')
+    .eq('chat_id', chatIdNum)
     .single();
 
-  if (!whitelist) {
+  return !!data;
+}
+
+async function getUserContext(telegramId: number, chatId: number | string): Promise<UserContext | null> {
+  // Check whitelist by chat_id
+  const isWhitelisted = await checkWhitelist(chatId);
+  if (!isWhitelisted) {
     return null;
+  }
+
+  // Convert chatId to number for query
+  const chatIdNum = typeof chatId === 'string' ? parseInt(chatId, 10) : chatId;
+  if (isNaN(chatIdNum)) {
+    return null;
+  }
+
+  // Get whitelist entry to check if user_id is set
+  const { data: whitelist } = await supabase
+    .from('telegram_whitelist')
+    .select('user_id')
+    .eq('chat_id', chatIdNum)
+    .single();
+
+  // If no user_id is set, return basic context (no profile-based permissions)
+  if (!whitelist?.user_id) {
+    // Get all departments for basic access
+    const { data: allDepts } = await supabase
+      .from('departments')
+      .select('id')
+      .eq('is_active', true);
+
+    return {
+      telegramId,
+      userId: '',
+      profile: { role: 'general', can_see_phones: false },
+      allowedDepartmentIds: Array.isArray(allDepts) ? allDepts.map((d) => d.id) : [],
+      canSeePhones: false,
+    };
   }
 
   // Get user profile
@@ -441,20 +483,41 @@ export const handler: Handler = async (event) => {
   try {
     const update: TelegramUpdate = JSON.parse(event.body || '{}');
 
+    // Extract chat_id from different update types
+    let chatId: number | undefined;
+    let telegramId: number | undefined;
+
+    if (update.callback_query) {
+      // Callback query (inline keyboard button click)
+      chatId = update.callback_query.message?.chat.id || update.callback_query.from.id;
+      telegramId = update.callback_query.from.id;
+    } else if (update.message) {
+      // Regular message
+      chatId = update.message.chat.id;
+      telegramId = update.message.from.id;
+    } else if (update.edited_message) {
+      // Edited message
+      chatId = update.edited_message.chat.id;
+      telegramId = update.edited_message.from.id;
+    }
+
+    // If no chat_id found, return OK (unknown update type)
+    if (!chatId || !telegramId) {
+      return { statusCode: 200, body: 'OK' };
+    }
+
     // Handle callback_query (button clicks)
     if (update.callback_query) {
       const callback = update.callback_query;
-      const telegramId = callback.from.id;
-      const chatId = callback.message?.chat.id || callback.from.id;
       const messageId = callback.message?.message_id;
 
       await answerCallbackQuery(callback.id);
 
-      const ctx = await getUserContext(telegramId);
+      const ctx = await getUserContext(telegramId, chatId);
       if (!ctx) {
         await sendTelegramMessage(
           chatId,
-          '❌ Доступ запрещён. Обратитесь к администратору.'
+          `❌ Доступ запрещён. Обратитесь к администратору.\n\nВаш chat_id: <code>${chatId}</code>`
         );
         return { statusCode: 200, body: 'OK' };
       }
@@ -499,23 +562,32 @@ export const handler: Handler = async (event) => {
       return { statusCode: 200, body: 'OK' };
     }
 
-    // Handle messages
-    if (!update.message) {
+    // Handle messages (regular or edited)
+    const message = update.message || update.edited_message;
+    if (!message) {
       return { statusCode: 200, body: 'OK' };
     }
 
-    const message = update.message;
-    const chatId = message.chat.id;
     const text = message.text || '';
-    const telegramId = message.from.id;
+    const username = message.from.username || null;
+    const fullName = `${message.from.first_name || ''} ${message.from.last_name || ''}`.trim() || null;
 
     // Check access
-    const ctx = await getUserContext(telegramId);
+    const ctx = await getUserContext(telegramId, chatId);
     if (!ctx) {
-      await sendTelegramMessage(
-        chatId,
-        '❌ Доступ запрещён. Обратитесь к администратору.'
-      );
+      // If user sends /start, show chat_id for admin to add
+      const command = text.split(' ')[0].toLowerCase();
+      if (command === '/start') {
+        await sendTelegramMessage(
+          chatId,
+          `❌ Доступ запрещён. Обратитесь к администратору.\n\nВаш chat_id: <code>${chatId}</code>\nПередайте этот ID администратору для добавления в whitelist.`
+        );
+      } else {
+        await sendTelegramMessage(
+          chatId,
+          `❌ Доступ запрещён. Обратитесь к администратору.\n\nВаш chat_id: <code>${chatId}</code>`
+        );
+      }
       return { statusCode: 200, body: 'OK' };
     }
 

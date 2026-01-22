@@ -252,21 +252,28 @@ Scheduled Function `cleanup` настроена в `netlify.toml` и будет 
 
 ### Настройка Telegram Whitelist
 
-1. **Узнайте Telegram ID пользователя:**
-   - Отправьте боту команду `/id` (бот ответит с вашим Telegram ID)
-   - Или используйте бота [@userinfobot](https://t.me/userinfobot)
+1. **Примените миграции:**
+   - В Supabase SQL Editor выполните миграции в порядке:
+     - `supabase/migrations/001_initial_schema.sql`
+     - `supabase/migrations/002_rls_policies.sql`
+     - `supabase/migrations/004_telegram_whitelist_update.sql`
+     - `supabase/migrations/005_telegram_whitelist_rls_update.sql`
 
 2. **Добавьте пользователя в whitelist:**
-   - В веб-интерфейсе: `/admin` > вкладка "Telegram" > "Добавить"
-   - Введите Telegram ID и выберите пользователя из списка
-   - Или через SQL (если нужно):
+   - Пользователь отправляет `/start` боту
+   - Бот отвечает с chat_id пользователя
+   - Администратор заходит в `/admin` > вкладка "Telegram" > "Добавить"
+   - Вводит chat_id (обязательно) и опционально username, full_name, note
+   - Сохраняет
 
-```sql
-INSERT INTO telegram_whitelist (telegram_id, user_id, is_active)
-VALUES (123456789, 'USER_UUID_HERE', true);
-```
+3. **Проверка доступа:**
+   - После добавления в whitelist пользователь может отправлять команды боту
+   - Если пользователь не в whitelist, бот отвечает: "Доступ запрещён. Ваш chat_id: 12345"
 
-**Примечание:** Права доступа к отделам и просмотр телефонов берутся из профиля пользователя, привязанного к Telegram ID.
+**Примечание:** 
+- Chat_id - это ID чата пользователя с ботом (обычно совпадает с user_id в личных чатах)
+- User_id в whitelist опционален - можно добавить только chat_id для базового доступа
+- Если user_id указан, используются права из профиля пользователя (отделы, can_see_phones и т.д.)
 
 ## 🔐 Безопасность
 

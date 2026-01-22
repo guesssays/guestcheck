@@ -4,6 +4,19 @@ import { supabase } from './_shared/supabase';
 import { logAudit } from './_shared/audit';
 
 export const handler: Handler = async (event) => {
+  // Handle CORS preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      },
+      body: '',
+    };
+  }
+
   const auth = await getAuthUser(event as any);
   if (!auth) {
     return errorResponse('Unauthorized', 401);
@@ -16,92 +29,100 @@ export const handler: Handler = async (event) => {
   }
 
   if (event.httpMethod === 'GET') {
-    const { data: whitelist, error } = await supabase
+    const url = new URL(event.rawUrl || `https://example.com${event.path}`);
+    const search = url.searchParams.get('search') || '';
+
+    let query = supabase
       .from('telegram_whitelist')
-      .select('*, profiles(role, display_name)')
+      .select('id, chat_id, username, full_name, note, added_by, created_at')
       .order('created_at', { ascending: false });
+
+    // Search by chat_id, username, or full_name
+    if (search) {
+      const searchNum = parseInt(search, 10);
+      if (!isNaN(searchNum)) {
+        // Search by chat_id
+        query = query.eq('chat_id', searchNum);
+      } else {
+        // Search by username or full_name
+        query = query.or(`username.ilike.%${search}%,full_name.ilike.%${search}%`);
+      }
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       return errorResponse(error.message, 500);
     }
 
-    // Get user emails and allowed departments for each user
+    // Get added_by user emails
     const whitelistWithDetails = await Promise.all(
-      (whitelist || []).map(async (item: any) => {
-        // Get user email
-        let userEmail = null;
-        try {
-          const { data: userData } = await supabase.auth.admin.getUserById(item.user_id);
-          userEmail = userData?.user?.email || null;
-        } catch (e) {
-          console.error('Error fetching user email:', e);
+      (data || []).map(async (item: any) => {
+        let addedByEmail = null;
+        if (item.added_by) {
+          try {
+            const { data: userData } = await supabase.auth.admin.getUserById(item.added_by);
+            addedByEmail = userData?.user?.email || null;
+          } catch (e) {
+            console.error('Error fetching added_by email:', e);
+          }
         }
 
-        // Get allowed departments
-        const { data: allowedDepts } = await supabase
-          .from('user_allowed_departments')
-          .select('department_id, departments(name)')
-          .eq('user_id', item.user_id);
-
-        const departments = Array.isArray(allowedDepts)
-          ? allowedDepts.map((d: any) => ({
-              id: d.department_id,
-              name: d.departments?.name || '',
-            }))
-          : [];
-
         return {
-          telegram_id: item.telegram_id,
-          user_id: item.user_id,
-          user_email: userEmail,
-          role: item.profiles?.role || null,
-          display_name: item.profiles?.display_name || null,
-          allowed_departments: departments,
-          is_active: item.is_active,
+          id: item.id,
+          chat_id: String(item.chat_id), // Ensure chat_id is always string (BIGINT may be returned as string)
+          username: item.username || null,
+          full_name: item.full_name || null,
+          note: item.note || null,
+          added_by: item.added_by || null,
+          added_by_email: addedByEmail,
           created_at: item.created_at,
-          updated_at: item.updated_at,
         };
       })
     );
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify(successResponse(whitelistWithDetails)),
     };
   }
 
   if (event.httpMethod === 'POST') {
     const body = JSON.parse(event.body || '{}');
-    const { telegram_id, user_id } = body;
+    const { chat_id, username, full_name, note } = body;
 
-    if (!telegram_id || !user_id) {
-      return errorResponse('telegram_id and user_id are required', 400);
+    if (!chat_id) {
+      return errorResponse('chat_id is required', 400);
     }
 
-    // Check if telegram_id already exists
+    const chatIdNum = typeof chat_id === 'string' ? parseInt(chat_id, 10) : chat_id;
+    if (isNaN(chatIdNum)) {
+      return errorResponse('chat_id must be a valid number', 400);
+    }
+
+    // Check if chat_id already exists
     const { data: existing } = await supabase
       .from('telegram_whitelist')
-      .select('telegram_id')
-      .eq('telegram_id', telegram_id)
+      .select('chat_id')
+      .eq('chat_id', chatIdNum)
       .single();
 
     if (existing) {
-      return errorResponse('Telegram ID already exists', 400);
-    }
-
-    // Check if user exists
-    const { data: userData, error: userError } = await supabase.auth.admin.getUserById(user_id);
-    if (userError || !userData) {
-      return errorResponse('User not found', 404);
+      return errorResponse('Chat ID already exists in whitelist', 400);
     }
 
     const { data, error } = await supabase
       .from('telegram_whitelist')
       .insert({
-        telegram_id: parseInt(telegram_id, 10),
-        user_id,
-        is_active: true,
+        chat_id: chatIdNum,
+        username: username || null,
+        full_name: full_name || null,
+        note: note || null,
+        added_by: user.id,
       })
       .select()
       .single();
@@ -110,43 +131,44 @@ export const handler: Handler = async (event) => {
       return errorResponse(error.message, 500);
     }
 
-    await logAudit(user.id, 'create_telegram_whitelist', 'telegram_whitelist', data.telegram_id.toString(), {
-      telegram_id,
-      user_id,
+    await logAudit(user.id, 'create_telegram_whitelist', 'telegram_whitelist', data.id, {
+      chat_id: chatIdNum,
+      username,
+      full_name,
     });
 
     return {
       statusCode: 201,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify(successResponse(data)),
     };
   }
 
   if (event.httpMethod === 'PUT') {
     const body = JSON.parse(event.body || '{}');
-    const { telegram_id, user_id, is_active } = body;
+    const { chat_id, username, full_name, note } = body;
 
-    if (!telegram_id) {
-      return errorResponse('telegram_id is required', 400);
+    if (!chat_id) {
+      return errorResponse('chat_id is required', 400);
+    }
+
+    const chatIdNum = typeof chat_id === 'string' ? parseInt(chat_id, 10) : chat_id;
+    if (isNaN(chatIdNum)) {
+      return errorResponse('chat_id must be a valid number', 400);
     }
 
     const updateData: any = {};
-    if (user_id !== undefined) {
-      // Check if user exists
-      const { data: userData, error: userError } = await supabase.auth.admin.getUserById(user_id);
-      if (userError || !userData) {
-        return errorResponse('User not found', 404);
-      }
-      updateData.user_id = user_id;
-    }
-    if (is_active !== undefined) {
-      updateData.is_active = is_active;
-    }
+    if (username !== undefined) updateData.username = username || null;
+    if (full_name !== undefined) updateData.full_name = full_name || null;
+    if (note !== undefined) updateData.note = note || null;
 
     const { data, error } = await supabase
       .from('telegram_whitelist')
       .update(updateData)
-      .eq('telegram_id', telegram_id)
+      .eq('chat_id', chatIdNum)
       .select()
       .single();
 
@@ -158,37 +180,61 @@ export const handler: Handler = async (event) => {
       return errorResponse('Telegram whitelist entry not found', 404);
     }
 
-    await logAudit(user.id, 'update_telegram_whitelist', 'telegram_whitelist', telegram_id.toString(), updateData);
+    await logAudit(user.id, 'update_telegram_whitelist', 'telegram_whitelist', data.id, updateData);
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify(successResponse(data)),
     };
   }
 
   if (event.httpMethod === 'DELETE') {
     const url = new URL(event.rawUrl || `https://example.com${event.path}`);
-    const telegramId = url.searchParams.get('telegram_id');
+    const chatId = url.searchParams.get('chat_id');
 
-    if (!telegramId) {
-      return errorResponse('telegram_id is required', 400);
+    if (!chatId) {
+      return errorResponse('chat_id is required', 400);
+    }
+
+    const chatIdNum = parseInt(chatId, 10);
+    if (isNaN(chatIdNum)) {
+      return errorResponse('chat_id must be a valid number', 400);
+    }
+
+    // Get entry before deletion for audit
+    const { data: entry } = await supabase
+      .from('telegram_whitelist')
+      .select('id')
+      .eq('chat_id', chatIdNum)
+      .single();
+
+    if (!entry) {
+      return errorResponse('Telegram whitelist entry not found', 404);
     }
 
     const { error } = await supabase
       .from('telegram_whitelist')
       .delete()
-      .eq('telegram_id', telegramId);
+      .eq('chat_id', chatIdNum);
 
     if (error) {
       return errorResponse(error.message, 500);
     }
 
-    await logAudit(user.id, 'delete_telegram_whitelist', 'telegram_whitelist', telegramId, {});
+    await logAudit(user.id, 'delete_telegram_whitelist', 'telegram_whitelist', entry.id, {
+      chat_id: chatIdNum,
+    });
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify(successResponse({ success: true })),
     };
   }

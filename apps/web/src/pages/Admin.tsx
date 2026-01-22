@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { getCurrentUser } from '@/lib/auth';
-import { Save, RotateCcw, User, MessageSquare } from 'lucide-react';
+import { Save, RotateCcw, User, MessageSquare, Plus, Trash2, Search } from 'lucide-react';
 import { PERMISSION_GROUPS, getPermissionsByGroup, ROLE_PRESETS } from '@/lib/permissions';
 
 export default function Admin() {
@@ -354,14 +354,255 @@ function UsersTab({
 }
 
 function TelegramWhitelistTab() {
+  const [search, setSearch] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [formData, setFormData] = useState({
+    chat_id: '',
+    username: '',
+    full_name: '',
+    note: '',
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  const queryClient = useQueryClient();
+
+  const { data: whitelistData, isLoading } = useQuery({
+    queryKey: ['telegramWhitelist', search],
+    queryFn: () => {
+      const params = search ? `?search=${encodeURIComponent(search)}` : '';
+      return api.get(`/telegram-whitelist${params}`);
+    },
+  });
+
+  const whitelist = Array.isArray(whitelistData) ? whitelistData : [];
+
+  const addMutation = useMutation({
+    mutationFn: (data: any) => api.post('/telegram-whitelist', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['telegramWhitelist'] });
+      setShowAddModal(false);
+      setFormData({ chat_id: '', username: '', full_name: '', note: '' });
+      setError(null);
+    },
+    onError: (err: any) => {
+      setError(err.message || 'Ошибка при добавлении');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (chatId: string) => api.delete(`/telegram-whitelist?chat_id=${chatId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['telegramWhitelist'] });
+    },
+  });
+
+  const handleAdd = () => {
+    if (!formData.chat_id.trim()) {
+      setError('Chat ID обязателен');
+      return;
+    }
+
+    setError(null);
+    addMutation.mutate({
+      chat_id: formData.chat_id.trim(),
+      username: formData.username.trim() || undefined,
+      full_name: formData.full_name.trim() || undefined,
+      note: formData.note.trim() || undefined,
+    });
+  };
+
+  const handleDelete = (chatId: string | number) => {
+    const chatIdStr = String(chatId);
+    if (confirm(`Удалить запись с chat_id ${chatIdStr} из whitelist?`)) {
+      deleteMutation.mutate(chatIdStr);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString('ru-RU', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   return (
-    <div className="bg-white shadow rounded-lg overflow-hidden">
-      <div className="px-6 py-4">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Telegram Whitelist</h2>
-        <p className="text-sm text-gray-600">
-          Управление доступом к Telegram-боту. Функционал в разработке.
-        </p>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Telegram Whitelist</h2>
+          <p className="text-sm text-gray-600">
+            Управление доступом к Telegram-боту. Пользователи должны отправить /start боту, чтобы узнать свой chat_id.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Добавить
+        </button>
       </div>
+
+      {/* Search */}
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-gray-400" />
+        </div>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Поиск по chat_id, username или full_name..."
+          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+        />
+      </div>
+
+      {/* Table */}
+      {isLoading ? (
+        <div className="text-center py-12">Загрузка...</div>
+      ) : (
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chat ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Full Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Note</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Added By</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {whitelist.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-4 text-center text-sm text-gray-500">
+                      {search ? 'Ничего не найдено' : 'Нет записей в whitelist'}
+                    </td>
+                  </tr>
+                ) : (
+                  whitelist.map((item: any) => (
+                    <tr key={item.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                        {String(item.chat_id)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.username || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.full_name || '-'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {item.note || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.added_by_email || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(item.created_at)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => handleDelete(String(item.chat_id))}
+                          className="text-red-600 hover:text-red-900"
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Add Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-6 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <h3 className="text-lg font-bold mb-4">Добавить в whitelist</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Chat ID <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.chat_id}
+                  onChange={(e) => setFormData({ ...formData, chat_id: e.target.value })}
+                  placeholder="123456789"
+                  className="w-full rounded-md border-gray-300 shadow-sm"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Пользователь может узнать свой chat_id, отправив /start боту
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                <input
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  placeholder="@username"
+                  className="w-full rounded-md border-gray-300 shadow-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                  placeholder="Имя Фамилия"
+                  className="w-full rounded-md border-gray-300 shadow-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Note</label>
+                <textarea
+                  value={formData.note}
+                  onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                  placeholder="Заметка (опционально)"
+                  rows={3}
+                  className="w-full rounded-md border-gray-300 shadow-sm"
+                />
+              </div>
+              {error && (
+                <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                  {error}
+                </div>
+              )}
+            </div>
+            <div className="mt-6 flex justify-end space-x-2">
+              <button
+                onClick={() => {
+                  setShowAddModal(false);
+                  setFormData({ chat_id: '', username: '', full_name: '', note: '' });
+                  setError(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleAdd}
+                disabled={!formData.chat_id.trim() || addMutation.isPending}
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
+              >
+                {addMutation.isPending ? 'Добавление...' : 'Добавить'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
