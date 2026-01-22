@@ -30,7 +30,7 @@ export default function Departments() {
     queryFn: () => api.get('/departments'),
   });
 
-  const departments = data?.data || [];
+  const departments = Array.isArray(data?.data) ? data.data : [];
   const queryClient = useQueryClient();
   const canManage = hasPermission(profile, 'can_manage_departments');
 

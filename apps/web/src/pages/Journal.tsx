@@ -16,7 +16,7 @@ export default function Journal() {
     queryFn: () => api.get('/departments'),
   });
 
-  const departments = deptsResponse?.data || [];
+  const departments = Array.isArray(deptsResponse?.data) ? deptsResponse.data : [];
 
   const { data, isLoading } = useQuery({
     queryKey: ['journal', type, startDate, endDate, departmentId, search, status],
@@ -32,7 +32,7 @@ export default function Journal() {
     },
   });
 
-  const items = data?.data || [];
+  const items = Array.isArray(data?.data) ? data.data : [];
 
   return (
     <div className="px-4 py-6 sm:px-0">
@@ -194,12 +194,12 @@ export default function Journal() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {item.check_in_at
-                            ? format(new Date(item.check_in_at), 'HH:mm', { locale: ru })
+                            ? format(new Date(item.check_in_at), 'HH:mm')
                             : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {item.check_out_at
-                            ? format(new Date(item.check_out_at), 'HH:mm', { locale: ru })
+                            ? format(new Date(item.check_out_at), 'HH:mm')
                             : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -231,12 +231,12 @@ export default function Journal() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {item.check_in_at
-                            ? format(new Date(item.check_in_at), 'HH:mm', { locale: ru })
+                            ? format(new Date(item.check_in_at), 'HH:mm')
                             : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {item.check_out_at
-                            ? format(new Date(item.check_out_at), 'HH:mm', { locale: ru })
+                            ? format(new Date(item.check_out_at), 'HH:mm')
                             : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
