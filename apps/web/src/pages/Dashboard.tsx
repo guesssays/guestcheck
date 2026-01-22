@@ -1,17 +1,20 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-
 import { hasPermission } from '@/lib/auth';
 import { UserPlus, UserMinus, Users, Clock, Building2 } from 'lucide-react';
+import AttendanceRegister from '@/components/AttendanceRegister';
 
 export default function Dashboard() {
-const { data: userResponse } = useQuery({
-  queryKey: ['currentUser'],
-  queryFn: () => api.get<{ user: any; profile: any }>('/me'),
-});
+  const [showRegisterModal, setShowRegisterModal] = useState<'in' | 'out' | null>(null);
 
-const profile = userResponse?.profile;
+  const { data: userResponse } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: () => api.get<{ user: any; profile: any }>('/me'),
+  });
+
+  const profile = userResponse?.profile;
 
 
   const { data: onlineData } = useQuery({
@@ -39,32 +42,30 @@ const profile = userResponse?.profile;
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {canRegisterAttendance && (
               <>
-                <Link
-                  to="/online"
-                  className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary-500"
+                <button
+                  onClick={() => setShowRegisterModal('in')}
+                  className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary-500 text-left"
                 >
                   <div className="flex-shrink-0">
                     <UserPlus className="h-6 w-6 text-green-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="absolute inset-0" aria-hidden="true" />
                     <p className="text-sm font-medium text-gray-900">Регистрация входа</p>
                     <p className="text-sm text-gray-500 truncate">Сотрудник</p>
                   </div>
-                </Link>
-                <Link
-                  to="/online"
-                  className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary-500"
+                </button>
+                <button
+                  onClick={() => setShowRegisterModal('out')}
+                  className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary-500 text-left"
                 >
                   <div className="flex-shrink-0">
                     <UserMinus className="h-6 w-6 text-red-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="absolute inset-0" aria-hidden="true" />
                     <p className="text-sm font-medium text-gray-900">Регистрация ухода</p>
                     <p className="text-sm text-gray-500 truncate">Сотрудник</p>
                   </div>
-                </Link>
+                </button>
               </>
             )}
             {canRegisterGuests && (
@@ -160,6 +161,14 @@ const profile = userResponse?.profile;
             </Link>
           </div>
         </div>
+      )}
+
+      {/* Attendance Register Modal */}
+      {showRegisterModal && (
+        <AttendanceRegister
+          mode={showRegisterModal}
+          onClose={() => setShowRegisterModal(null)}
+        />
       )}
     </div>
   );

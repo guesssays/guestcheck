@@ -221,11 +221,18 @@ Netlify автоматически задеплоит при пуше в осн�
 После деплоя настройте webhook для Telegram бота:
 
 ```bash
+# Установить webhook
 curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
   -d "url=https://your-site.netlify.app/api/telegram-webhook"
+
+# Проверить webhook
+curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo"
 ```
 
-Или используйте функцию в коде (если добавите endpoint `/api/telegram-set-webhook`).
+**Важно:**
+- Замените `<YOUR_BOT_TOKEN>` на токен вашего бота
+- Замените `https://your-site.netlify.app` на URL вашего Netlify сайта
+- Webhook должен указывать на `/api/telegram-webhook` (Netlify автоматически проксирует на `/.netlify/functions/telegram-webhook`)
 
 ### 6. Настройка Scheduled Function для очистки
 
@@ -245,15 +252,21 @@ Scheduled Function `cleanup` настроена в `netlify.toml` и будет 
 
 ### Настройка Telegram Whitelist
 
-1. Узнайте Telegram ID пользователя (отправьте `/start` боту, посмотрите в логах или используйте @userinfobot)
-2. В Supabase SQL Editor:
+1. **Узнайте Telegram ID пользователя:**
+   - Отправьте боту команду `/id` (бот ответит с вашим Telegram ID)
+   - Или используйте бота [@userinfobot](https://t.me/userinfobot)
+
+2. **Добавьте пользователя в whitelist:**
+   - В веб-интерфейсе: `/admin` > вкладка "Telegram" > "Добавить"
+   - Введите Telegram ID и выберите пользователя из списка
+   - Или через SQL (если нужно):
 
 ```sql
 INSERT INTO telegram_whitelist (telegram_id, user_id, is_active)
 VALUES (123456789, 'USER_UUID_HERE', true);
 ```
 
-Или добавьте через админку (если реализовано).
+**Примечание:** Права доступа к отделам и просмотр телефонов берутся из профиля пользователя, привязанного к Telegram ID.
 
 ## 🔐 Безопасность
 
@@ -284,21 +297,38 @@ VALUES (123456789, 'USER_UUID_HERE', true);
 
 ## 🤖 Telegram Bot
 
-### Команды
+### Функции бота
 
-- `/start` или `/help` - список команд
-- `/now` - кто сейчас в здании
-- `/out` - кто вышел сегодня
+Бот показывает статусы сотрудников по отделам: "В здании / Вне здания", время прибытия, время ухода, отдел.
+
+**Доступ:** Только пользователи из whitelist с привязкой к роли и разрешённым отделам.
+
+**Команды:**
+- `/start` или `/help` - главное меню
+- `/id` - узнать свой Telegram ID (для добавления в whitelist)
+- `/now` - кто сейчас в здании (по разрешённым отделам)
+- `/out` - кто вышел сегодня (по разрешённым отделам)
 - `/dept [название]` - статусы по отделу
-- `/employee [ФИО]` - статус конкретного сотрудника
+- `/employee [ФИО]` - поиск по сотруднику
+
+**Inline меню:**
+- 🏢 Сейчас в здании
+- 🚶 Вне здания
+- 🏬 По отделу (список доступных отделов)
+- 🔎 По сотруднику (поиск по ФИО)
+
+**Особенности:**
+- Телефоны показываются только если у пользователя есть право `can_see_phones`
+- Фильтрация по разрешённым отделам (из `user_allowed_departments`)
+- Админы видят все отделы
 
 ### Настройка
 
 1. Создайте бота через [@BotFather](https://t.me/botfather)
 2. Получите `TELEGRAM_BOT_TOKEN`
 3. Добавьте токен в переменные окружения Netlify
-4. Настройте webhook (см. выше)
-5. Добавьте пользователей в whitelist
+4. Настройте webhook (см. раздел "Деплой на Netlify")
+5. Добавьте пользователей в whitelist через админку (`/admin` > вкладка "Telegram")
 
 ## 🐛 Решение проблем
 

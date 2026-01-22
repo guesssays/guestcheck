@@ -8,7 +8,7 @@ export const handler: Handler = async (event) => {
     return errorResponse('Method not allowed', 405);
   }
 
-  const auth = await getAuthUser(event as any);
+  const auth = await getAuthUser(event);
   if (!auth) {
     return errorResponse('Unauthorized', 401);
   }
