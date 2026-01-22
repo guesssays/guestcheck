@@ -19,13 +19,13 @@ export default function OnlineStatus() {
     queryFn: () => api.get('/departments'),
   });
 
-  const departments = Array.isArray(deptsResponse?.data) ? deptsResponse.data : [];
+  const departments = Array.isArray(deptsResponse) ? deptsResponse : [];
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['onlineStatus', selectedDept],
     queryFn: () => {
       const params = selectedDept ? `?department_id=${selectedDept}` : '';
-      return api.get(`/online-status${params}`);
+      return api.get<{ in_building: any[]; outside: any[] }>(`/online-status${params}`);
     },
     enabled: hasPermission(profile, 'can_view_online'),
     refetchInterval: 30000,
@@ -52,7 +52,7 @@ export default function OnlineStatus() {
   const canRegister = hasPermission(profile, 'can_register_attendance');
   const canSeePhones = hasPermission(profile, 'can_see_phones');
 
-  const onlineData = data?.data as { in_building?: any[]; outside?: any[] } | undefined;
+  const onlineData = data as { in_building?: any[]; outside?: any[] } | undefined;
   const inBuilding = Array.isArray(onlineData?.in_building) ? onlineData.in_building : [];
   const outside = Array.isArray(onlineData?.outside) ? onlineData.outside : [];
 

@@ -45,8 +45,8 @@ export default function Guests() {
     queryFn: () => api.get('/employees'),
   });
 
-  const departments = Array.isArray(deptsResponse?.data) ? deptsResponse.data : [];
-  const employees = Array.isArray(employeesResponse?.data) ? employeesResponse.data : [];
+  const departments = Array.isArray(deptsResponse) ? deptsResponse : [];
+  const employees = Array.isArray(employeesResponse) ? employeesResponse : [];
 
   const { data: expectedData } = useQuery({
     queryKey: ['guestsExpected'],
@@ -101,8 +101,8 @@ export default function Guests() {
     reset();
   };
 
-  const expectedGuests = Array.isArray(expectedData?.data) ? expectedData.data : [];
-  const allGuests = Array.isArray(allData?.data) ? allData.data : [];
+  const expectedGuests = Array.isArray(expectedData) ? expectedData : [];
+  const allGuests = Array.isArray(allData) ? allData : [];
 
   return (
     <div className="px-4 py-6 sm:px-0">

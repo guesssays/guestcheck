@@ -39,7 +39,7 @@ export default function Employees() {
     queryFn: () => api.get('/departments'),
   });
 
-  const departments = Array.isArray(deptsResponse?.data) ? deptsResponse.data : [];
+  const departments = Array.isArray(deptsResponse) ? deptsResponse : [];
 
   const { data, isLoading } = useQuery({
     queryKey: ['employees', search, selectedDept],
@@ -51,7 +51,7 @@ export default function Employees() {
     },
   });
 
-  const employees = Array.isArray(data?.data) ? data.data : [];
+  const employees = Array.isArray(data) ? data : [];
   const queryClient = useQueryClient();
   const canManage = hasPermission(profile, 'can_manage_employees');
   const canSeePhones = hasPermission(profile, 'can_see_phones');

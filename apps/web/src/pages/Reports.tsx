@@ -16,7 +16,7 @@ export default function Reports() {
     queryFn: () => api.get('/departments'),
   });
 
-  const departments = Array.isArray(deptsResponse?.data) ? deptsResponse.data : [];
+  const departments = Array.isArray(deptsResponse) ? deptsResponse : [];
 
   const handleDownload = async () => {
     try {

@@ -30,8 +30,8 @@ export default function Admin() {
     queryFn: () => api.get('/departments'),
   });
 
-  const users = Array.isArray(usersData?.data) ? usersData.data : [];
-  const departments = Array.isArray(deptsData?.data) ? deptsData.data : [];
+  const users = Array.isArray(usersData) ? usersData : [];
+  const departments = Array.isArray(deptsData) ? deptsData : [];
   const queryClient = useQueryClient();
 
   const [editingUserId, setEditingUserId] = useState<string | null>(null);

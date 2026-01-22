@@ -11,8 +11,9 @@ export default function Dashboard() {
     queryFn: () => api.get<{ user: User; profile: any }>('/me'),
   });
 
-  const user = userResponse?.data?.user;
-  const profile = user?.profile;
+  // api.get now returns unwrapped data directly
+  const user = userResponse?.user;
+  const profile = userResponse?.profile;
 
   const { data: onlineData } = useQuery({
     queryKey: ['onlineStatus'],
@@ -102,7 +103,7 @@ export default function Dashboard() {
       )}
 
       {/* Online Status Summary */}
-      {hasPermission(profile, 'can_view_online') && onlineData?.data && (
+      {hasPermission(profile, 'can_view_online') && onlineData && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Онлайн статусы</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -116,7 +117,7 @@ export default function Dashboard() {
                     <dl>
                       <dt className="text-sm font-medium text-gray-500 truncate">В здании</dt>
                       <dd className="text-lg font-medium text-gray-900">
-                        {onlineData.data.in_building?.length || 0}
+                        {onlineData.in_building?.length || 0}
                       </dd>
                     </dl>
                   </div>
@@ -133,7 +134,7 @@ export default function Dashboard() {
                     <dl>
                       <dt className="text-sm font-medium text-gray-500 truncate">Вне здания</dt>
                       <dd className="text-lg font-medium text-gray-900">
-                        {onlineData.data.outside?.length || 0}
+                        {onlineData.outside?.length || 0}
                       </dd>
                     </dl>
                   </div>

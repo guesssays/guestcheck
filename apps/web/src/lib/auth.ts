@@ -39,17 +39,23 @@ export async function getCurrentUser(): Promise<User | null> {
     localStorage.setItem('auth_token', session.access_token);
 
     const response = await api.get<{ user: User; profile: any }>('/me');
-    if (response.success && response.data) {
+    // api.get now returns the unwrapped data directly
+    if (response && response.user) {
       return {
-        ...response.data.user,
-        profile: response.data.profile,
-        allowed_department_ids: response.data.profile?.allowed_department_ids || [],
+        ...response.user,
+        profile: response.profile,
+        allowed_department_ids: response.profile?.allowed_department_ids || [],
       };
     }
-  } catch (error) {
-    console.error('Failed to get current user:', error);
-    // Clear invalid token
-    localStorage.removeItem('auth_token');
+  } catch (error: any) {
+    const errorMessage = error?.message || 'Failed to get current user';
+    console.error('Failed to get current user:', errorMessage, error);
+    
+    // Clear invalid token on 401 or auth errors
+    if (errorMessage.includes('401') || errorMessage.includes('Unauthorized') || errorMessage.includes('token')) {
+      console.warn('Clearing invalid auth token');
+      localStorage.removeItem('auth_token');
+    }
   }
 
   return null;

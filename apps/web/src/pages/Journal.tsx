@@ -16,7 +16,7 @@ export default function Journal() {
     queryFn: () => api.get('/departments'),
   });
 
-  const departments = Array.isArray(deptsResponse?.data) ? deptsResponse.data : [];
+  const departments = Array.isArray(deptsResponse) ? deptsResponse : [];
 
   const { data, isLoading } = useQuery({
     queryKey: ['journal', type, startDate, endDate, departmentId, search, status],
@@ -32,7 +32,7 @@ export default function Journal() {
     },
   });
 
-  const items = Array.isArray(data?.data) ? data.data : [];
+  const items = Array.isArray(data) ? data : [];
 
   return (
     <div className="px-4 py-6 sm:px-0">
