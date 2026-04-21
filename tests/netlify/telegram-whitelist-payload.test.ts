@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { mapTelegramWhitelistDbError, parseWhitelistChatId } from './telegram-whitelist-payload';
+import {
+  mapTelegramWhitelistDbError,
+  parseWhitelistChatId,
+} from '../../netlify/functions/_shared/telegram-whitelist-payload';
 
 describe('parseWhitelistChatId', () => {
   it('accepts chat_id string', () => {
