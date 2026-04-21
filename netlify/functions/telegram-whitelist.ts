@@ -2,6 +2,7 @@ import type { Handler } from '@netlify/functions';
 import { getAuthUser, errorResponse, successResponse } from './_shared/supabase';
 import { supabase } from './_shared/supabase';
 import { logAudit } from './_shared/audit';
+import { mapTelegramWhitelistDbError, parseWhitelistChatId } from './_shared/telegram-whitelist-payload';
 
 export const handler: Handler = async (event) => {
   // Handle CORS preflight
@@ -52,7 +53,7 @@ export const handler: Handler = async (event) => {
     const { data, error } = await query;
 
     if (error) {
-      return errorResponse(error.message, 500);
+      return errorResponse(mapTelegramWhitelistDbError(error.message), 500);
     }
 
     // Get added_by user emails
@@ -92,24 +93,22 @@ export const handler: Handler = async (event) => {
   }
 
   if (event.httpMethod === 'POST') {
-    const body = JSON.parse(event.body || '{}');
-    const { chat_id, username, full_name, note } = body;
-
-    if (!chat_id) {
-      return errorResponse('chat_id is required', 400);
+    const body = JSON.parse(event.body || '{}') as Record<string, unknown>;
+    const parsed = parseWhitelistChatId(body);
+    if (!parsed.ok) {
+      return errorResponse(parsed.error, parsed.status);
     }
+    const chatIdNum = parsed.chatId;
+    const username = body.username as string | undefined;
+    const full_name = body.full_name as string | undefined;
+    const note = body.note as string | undefined;
 
-    const chatIdNum = typeof chat_id === 'string' ? parseInt(chat_id, 10) : chat_id;
-    if (isNaN(chatIdNum)) {
-      return errorResponse('chat_id must be a valid number', 400);
-    }
-
-    // Check if chat_id already exists
+    // Check if chat_id already exists (maybeSingle: no error when zero rows)
     const { data: existing } = await supabase
       .from('telegram_whitelist')
       .select('chat_id')
       .eq('chat_id', chatIdNum)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       return errorResponse('Chat ID already exists in whitelist', 400);
@@ -119,6 +118,8 @@ export const handler: Handler = async (event) => {
       .from('telegram_whitelist')
       .insert({
         chat_id: chatIdNum,
+        // Legacy NOT NULL DBs: mirror chat_id; nullable DBs ignore redundancy
+        telegram_id: chatIdNum,
         username: username || null,
         full_name: full_name || null,
         note: note || null,
@@ -128,7 +129,7 @@ export const handler: Handler = async (event) => {
       .single();
 
     if (error) {
-      return errorResponse(error.message, 500);
+      return errorResponse(mapTelegramWhitelistDbError(error.message), 500);
     }
 
     await logAudit(user.id, 'create_telegram_whitelist', 'telegram_whitelist', data.id, {
@@ -148,17 +149,15 @@ export const handler: Handler = async (event) => {
   }
 
   if (event.httpMethod === 'PUT') {
-    const body = JSON.parse(event.body || '{}');
-    const { chat_id, username, full_name, note } = body;
-
-    if (!chat_id) {
-      return errorResponse('chat_id is required', 400);
+    const body = JSON.parse(event.body || '{}') as Record<string, unknown>;
+    const parsed = parseWhitelistChatId(body);
+    if (!parsed.ok) {
+      return errorResponse(parsed.error, parsed.status);
     }
-
-    const chatIdNum = typeof chat_id === 'string' ? parseInt(chat_id, 10) : chat_id;
-    if (isNaN(chatIdNum)) {
-      return errorResponse('chat_id must be a valid number', 400);
-    }
+    const chatIdNum = parsed.chatId;
+    const username = body.username as string | undefined;
+    const full_name = body.full_name as string | undefined;
+    const note = body.note as string | undefined;
 
     const updateData: any = {};
     if (username !== undefined) updateData.username = username || null;
@@ -173,7 +172,7 @@ export const handler: Handler = async (event) => {
       .single();
 
     if (error) {
-      return errorResponse(error.message, 500);
+      return errorResponse(mapTelegramWhitelistDbError(error.message), 500);
     }
 
     if (!data) {
@@ -222,7 +221,7 @@ export const handler: Handler = async (event) => {
       .eq('chat_id', chatIdNum);
 
     if (error) {
-      return errorResponse(error.message, 500);
+      return errorResponse(mapTelegramWhitelistDbError(error.message), 500);
     }
 
     await logAudit(user.id, 'delete_telegram_whitelist', 'telegram_whitelist', entry.id, {

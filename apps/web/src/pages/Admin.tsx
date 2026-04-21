@@ -397,14 +397,19 @@ function TelegramWhitelistTab() {
   });
 
   const handleAdd = () => {
-    if (!formData.chat_id.trim()) {
+    const rawChat = formData.chat_id.trim();
+    if (!rawChat) {
       setError('Chat ID обязателен');
+      return;
+    }
+    if (!/^-?\d+$/.test(rawChat)) {
+      setError('Chat ID должен быть целым числом');
       return;
     }
 
     setError(null);
     addMutation.mutate({
-      chat_id: formData.chat_id.trim(),
+      chat_id: rawChat,
       username: formData.username.trim() || undefined,
       full_name: formData.full_name.trim() || undefined,
       note: formData.note.trim() || undefined,
@@ -438,7 +443,10 @@ function TelegramWhitelistTab() {
           </p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => {
+            setError(null);
+            setShowAddModal(true);
+          }}
           className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700"
         >
           <Plus className="h-4 w-4 mr-2" />
